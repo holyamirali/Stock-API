@@ -1,6 +1,7 @@
-from flask import Flask
-from flask_restful import Api, Resource, reqparse, fields, marshal_with, abort
+from flask import Flask, jsonify, json
+from flask_restful import Api, Resource, marshal, reqparse, fields, marshal_with, abort
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.wrappers import response
 
 app = Flask(__name__)
 api = Api(app)
@@ -23,17 +24,24 @@ class ShareModel(db.Model):
         self.trade = trade
 
 share_args  =   reqparse.RequestParser()
-share_args.add_argument("date", type=int, help="Date is required")
-share_args.add_argument("price", type=int, help="Price is required")
-share_args.add_argument("volume", type=int, help="Volume is required")
-share_args.add_argument("trade", type=str, help="Trade is required")
+share_args_update  =   reqparse.RequestParser()
+
+
+share_args.add_argument("date", type=int, help="Date is required", required=True)
+share_args.add_argument("price", type=int, help="Price is required", required=True)
+share_args.add_argument("volume", type=int, help="Volume is required", required=True)
+share_args.add_argument("trade", type=str, help="Trade type is required", required=True)
+
+share_args_update.add_argument("date", type=int)
+share_args_update.add_argument("price", type=int)
+share_args_update.add_argument("volume", type=int)
+share_args_update.add_argument("trade", type=str)
 
 resource_fields = {
-    #'id': fields.Integer,
     'date': fields.Integer,
     'price': fields.Integer,
     'volume': fields.Integer,
-    'trade': fields.String
+    'trade': fields.String,
 }
 
 
@@ -47,21 +55,38 @@ class PostPutShare(Resource):
         db.session.commit()
         return share, 201
 
+    @marshal_with(resource_fields)
+    def put(self):
+        args = share_args_update.parse_args()
+        askedShare = db.session.query(ShareModel).filter(ShareModel.date == args['date'], ShareModel.trade == args['trade']).first()
+        if askedShare is not None:
+            if args['price']:
+                askedShare.price = args['price']
+            if args['volume']:
+                askedShare.volume = args['volume']
+            db.session.commit()
+            return askedShare, 200
+        abort(404, message="Share with given date and trade type is not found !")
+
 class GetDeleteShare(Resource):
 
     @marshal_with(resource_fields)
     def get(self, date, trade):
-        #result = ShareModel.query.filter_by(trade=trade)
         result = db.session.query(ShareModel).filter(ShareModel.date == date, ShareModel.trade == trade).first()
-        #for res in result:
-        #    print(res.price)
-        #    return res, 200
-        print("date equals : {}".format(date))
-        print("trade equals : {}".format(trade))
         if result is not None:
-            print(result)
             return result, 200
-        abort(404, message="No share found !")
+        abort(404, message="Share with given date and trade type is not found !")
+
+    def delete(self, date, trade):
+        askedShare = db.session.query(ShareModel).filter(ShareModel.date == date, ShareModel.trade == trade).first()
+        if askedShare is not None:
+            db.session.delete(askedShare)
+            db.session.commit()
+            resp = {'message': 'Share deleted successfully!'}
+            return resp, 200
+        abort(404, message="Share with given date and trade type is not found !")
+        
+
 api.add_resource(PostPutShare, "/share")
 api.add_resource(GetDeleteShare, "/<int:date>/<string:trade>")
 
