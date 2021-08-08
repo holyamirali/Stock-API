@@ -1,5 +1,5 @@
 from flask import Flask
-from flask_restful import Api, Resource, reqparse, fields, marshal_with
+from flask_restful import Api, Resource, reqparse, fields, marshal_with, abort
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -15,8 +15,6 @@ class ShareModel(db.Model):
     volume  = db.Column(db.Integer)
     trade   = db.Column(db.String(40))
 
-    #def __repr__(self):
-	#    return f"Share(date = {date}, price = {price}, volume = {volume} )"
 
     def __init__(self, date, price, volume, trade):
         self.date = date
@@ -31,7 +29,7 @@ share_args.add_argument("volume", type=int, help="Volume is required")
 share_args.add_argument("trade", type=str, help="Trade is required")
 
 resource_fields = {
-    'id': fields.Integer,
+    #'id': fields.Integer,
     'date': fields.Integer,
     'price': fields.Integer,
     'volume': fields.Integer,
@@ -39,10 +37,7 @@ resource_fields = {
 }
 
 
-class Share(Resource):
-    @marshal_with(resource_fields)
-    def get(self, ):
-        return
+class PostPutShare(Resource):
 
     @marshal_with(resource_fields)
     def post(self):
@@ -52,7 +47,23 @@ class Share(Resource):
         db.session.commit()
         return share, 201
 
-api.add_resource(Share, "/share")
+class GetDeleteShare(Resource):
+
+    @marshal_with(resource_fields)
+    def get(self, date, trade):
+        #result = ShareModel.query.filter_by(trade=trade)
+        result = db.session.query(ShareModel).filter(ShareModel.date == date, ShareModel.trade == trade).first()
+        #for res in result:
+        #    print(res.price)
+        #    return res, 200
+        print("date equals : {}".format(date))
+        print("trade equals : {}".format(trade))
+        if result is not None:
+            print(result)
+            return result, 200
+        abort(404, message="No share found !")
+api.add_resource(PostPutShare, "/share")
+api.add_resource(GetDeleteShare, "/<int:date>/<string:trade>")
 
 if __name__ == "__main__":
     app.run(debug=True)
